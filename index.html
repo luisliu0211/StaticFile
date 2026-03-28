@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>巨岩行銷調樣掃描系統</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        #reader video {
+            border-radius: 24px;
+            object-fit: cover;
+        }
+
+        .tag-active {
+            background-color: #2563eb !important;
+            color: white !important;
+            border-color: #2563eb !important;
+        }
+
+        .global-lang {
+            z-index: 300;
+        }
+
+        #login-page {
+            z-index: 200;
+        }
+
+        .app-header {
+            z-index: 100;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen">
+
+    <div class="global-lang fixed top-6 right-6">
+        <select id="lang-select" onchange="changeLang(this.value)"
+            class="bg-white/90 backdrop-blur shadow-md border border-slate-200 rounded-full px-4 py-2 text-xs font-bold text-slate-700 outline-none ring-2 ring-blue-100">
+            <option value="zh">繁體中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+        </select>
+    </div>
+
+    <div id="login-page"
+        class="fixed inset-0 bg-slate-50 flex flex-col items-center p-6 overflow-y-auto pb-20 transition-all duration-500">
+        <div class="mt-16 w-full max-w-sm text-center">
+            <h1 id="t-welcome" class="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight"></h1>
+            <p id="t-login-desc" class="text-slate-500 mb-8 text-sm"></p>
+            <div class="bg-white rounded-[32px] p-8 shadow-2xl space-y-6 text-left border border-slate-100">
+                <div>
+                    <label id="t-label-name" class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1"></label>
+                    <input type="text" id="user-name"
+                        class="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label id="t-label-email"
+                        class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1"></label>
+                    <input type="email" id="user-email"
+                        class="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label id="t-label-tag" class="block text-xs font-bold text-slate-400 uppercase mb-3 ml-1"></label>
+                    <div id="style-tags" class="grid grid-cols-2 gap-2"></div>
+                </div>
+                <button onclick="handleLogin()" id="t-btn-start"
+                    class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all mt-2"></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <header class="app-header bg-white shadow-sm p-4 sticky top-0 flex justify-between items-center px-6">
+            <div class="flex items-center gap-3">
+                <button onclick="goBackToLogin()"
+                    class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 active:bg-slate-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </button>
+                <div class="text-left">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase leading-none">Scanning as</p>
+                    <p id="display-name" class="text-sm font-bold text-slate-800"></p>
+                </div>
+            </div>
+        </header>
+        <main class="max-w-md mx-auto p-4 space-y-6">
+            <div class="bg-white rounded-[32px] shadow-2xl overflow-hidden border-4 border-white mt-2">
+                <div id="reader"></div>
+                <div id="t-scan-tip" class="p-4 bg-slate-900 text-white text-center text-sm font-medium"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="preview-modal" class="fixed inset-0 z-[400] flex items-end justify-center hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePreview()"></div>
+        <div
+            class="bg-white w-full max-w-md rounded-t-[32px] p-6 shadow-2xl transform translate-y-full transition-transform duration-300 relative z-10">
+            <div id="recom-badge"
+                class="hidden absolute -top-4 right-8 bg-amber-400 text-white px-4 py-1 rounded-full text-xs font-black shadow-lg">
+                MATCH 🔥</div>
+            <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+            <div class="flex gap-4 mb-6">
+                <img id="p-img" src="" class="w-32 h-32 rounded-2xl object-cover bg-slate-50">
+                <div class="flex-1">
+                    <h3 id="p-name" class="text-l font-bold text-slate-800"></h3>
+                    <h3 id="p-name-en" class="text-xs text-slate-800"></h3>
+                    <p id="p-content" class="text-xs text-slate-500 mt-2 font-medium"></p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closePreview()" id="t-btn-cancel"
+                    class="py-4 rounded-2xl font-bold text-slate-500 bg-slate-100"></button>
+                <button onclick="addToCart()" id="t-btn-add"
+                    class="py-4 rounded-2xl font-bold text-white bg-blue-600 shadow-lg shadow-blue-200"></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-page"
+        class="fixed inset-0 z-[500] bg-slate-50 translate-x-full transition-transform duration-300 hidden flex flex-col">
+        <div class="bg-white p-4 flex items-center shadow-sm">
+            <button onclick="closeCart()" class="p-2 -ml-2 text-slate-600"><svg xmlns="http://www.w3.org/2000/svg"
+                    class="h-6 w-6" fill="darkgrey" viewBox="0 0 24 24" stroke="currentColor font-bold">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg></button>
+            <h2 id="t-cart-title" class="flex-1 text-center font-bold text-lg mr-6 text-slate-800"></h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div id="cart-items"></div>
+        </div>
+
+        <!-- Global Setting Area Added Here -->
+        <div id="global-setting-area" class="p-6 bg-white border-t border-slate-100 space-y-4 hidden">
+            <p id="t-setting-title" class="text-xs font-bold text-slate-400 uppercase tracking-wider"></p>
+            <div class="flex bg-slate-100 p-1.5 rounded-2xl">
+                <button onclick="setGlobalOption('詢價')" id="btn-opt-inquiry"
+                    class="flex-1 py-3 text-sm font-bold rounded-xl transition-all"></button>
+                <button onclick="setGlobalOption('詢價+調樣(吊卡)')" id="btn-opt-sample"
+                    class="flex-1 py-3 text-sm font-bold rounded-xl transition-all"></button>
+            </div>
+
+            <div id="global-qty-area" class="flex items-center justify-between bg-blue-50 p-4 rounded-2xl hidden">
+                <span id="t-qty-label" class="text-sm font-bold text-blue-700"></span>
+                <div class="flex items-center gap-4">
+                    <button onclick="updateGlobalQty(-1)"
+                        class="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm text-blue-600 font-bold active:scale-90 transition-transform">-</button>
+                    <span id="global-qty-display" class="text-lg font-black text-blue-700 w-6 text-center">1</span>
+                    <button onclick="updateGlobalQty(1)"
+                        class="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-sm text-blue-600 font-bold active:scale-90 transition-transform">+</button>
+                </div>
+            </div>
+
+            <div class="pt-2 grid grid-cols-2 gap-3">
+                <button onclick="downloadPDF()" id="t-btn-pdf"
+                    class="w-full bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold text-sm">Download PDF</button>
+                <button onclick="finalSubmit()" id="t-btn-submit"
+                    class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg shadow-xl"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden PDF Table Template -->
+    <div id="pdf-table-template" class="hidden">
+        <div style="padding: 30px; font-family: 'Helvetica', 'Arial', sans-serif; color: #444; background: white;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="font-size: 20px; margin: 0; color: #000; letter-spacing: 1px;">HugeRock Sample Request</h1>
+                <p style="font-size: 10px; margin: 0; color: #999;" id="pdf-date"></p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 11px; margin-bottom: 4px;"><strong>Customer:</strong> <span
+                        id="pdf-user-name"></span> (<span id="pdf-user-email"></span>)</p>
+                <p style="font-size: 11px; margin: 0;"><strong>Request Type:</strong> <span
+                        id="pdf-request-type"></span></p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background-color: #f1f5f9;">
+                        <th
+                            style="border: 1px solid #e2e8f0; padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b;">
+                            Item Code</th>
+                        <th
+                            style="border: 1px solid #e2e8f0; padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b;">
+                            Fabric Description</th>
+                        <th
+                            style="border: 1px solid #e2e8f0; padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b;">
+                            Specification</th>
+                        <th
+                            style="border: 1px solid #e2e8f0; padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b;">
+                            Composition</th>
+                    </tr>
+                </thead>
+                <tbody id="pdf-table-body"></tbody>
+            </table>
+
+            <div
+                style="margin-top: 40px; font-size: 9px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+                Generated by HugeRock Exhibition System
+            </div>
+        </div>
+    </div>
+
+    <button onclick="openCart()" id="cart-fab"
+        class="fixed bottom-8 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all z-40 hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="white" viewBox="0 0 24 24"
+            stroke="currentColor font-bold">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+        </svg>
+        <div id="badge"
+            class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
+            0</div>
+    </button>
+
+    <script>
+        const i18n = {
+            zh: {
+                welcome: "展覽需求採集", login_desc: "請填寫資訊並選擇您感興趣的風格", label_name: "客戶姓名", label_email: "電子郵件", label_tag: "需求意向 (多選)", btn_start: "開始掃描",
+                scan_tip: "請掃描布樣 QR Code", cart_title: "需求清單", btn_submit: "提交需求", btn_add: "加入清單", btn_cancel: "取消",
+                setting_title: "全域需求設定", opt_inquiry: "僅詢價", opt_sample: "詢價+調樣(吊卡)", qty_label: "每款調樣數量", btn_pdf: "下載 PDF",
+                tags: ["運動機能", "休閒生活", "都會時尚", "戶外休閒", "永續環保", "醫療防護", "工業用途", "居家裝飾"]
+            },
+            en: {
+                welcome: "Lead Capture", login_desc: "Enter info and style interests", label_name: "Name", label_email: "Email", label_tag: "Interests", btn_start: "Start Scan",
+                scan_tip: "Scan QR Code", cart_title: "Request List", btn_submit: "Submit", btn_add: "Add to List", btn_cancel: "Cancel",
+                setting_title: "Global Request Setting", opt_inquiry: "Inquiry Only", opt_sample: "Inquiry + Sample (Hanger)", qty_label: "Sample Qty", btn_pdf: "Download PDF",
+                tags: ["Sports", "Casual", "Modern", "Outdoor", "Eco-Friendly", "Medical", "Industrial", "Home Decor"]
+            },
+            ja: {
+                welcome: "リード採集", login_desc: "情報を入力してください", label_name: "お名前", label_email: "メール", label_tag: "興味のある分野", btn_start: "スキャン開始",
+                scan_tip: "QRコードをスキャン", cart_title: "要望リスト", btn_submit: "送信", btn_add: "追加", btn_cancel: "戻る",
+                setting_title: "全体設定", opt_inquiry: "お引き合いのみ", opt_sample: "お引き合い+ハンガー見本", qty_label: "数量", btn_pdf: "PDF保存",
+                tags: ["スポーツ", "カジュアル", "モダン", "アウトドア", "エコ", "医療", "工業", "インテリア"]
+            }
+        };
+
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxAXkWx1lzGsH0retqdMeCHKu5ae2G1W45oGrQa2J7vQ2bo7A9baKqp05on_AQ3uCY2Hw/exec';
+        let currentLang = 'zh';
+        let cart = [];
+        let userData = { name: '', email: '', tags: [] };
+        let scanner = null;
+        let currentScannedItem = null;
+        let globalOption = '詢價';
+        let globalQty = 1;
+        let isSubmitted = false;
+
+        function changeLang(lang) {
+            currentLang = lang;
+            const t = i18n[lang];
+            const mapping = {
+                'welcome': 't-welcome', 'login-desc': 't-login-desc', 'label-name': 't-label-name', 'label-email': 't-label-email',
+                'label-tag': 't-label-tag', 'btn-start': 't-btn-start', 'scan-tip': 't-scan-tip', 'cart-title': 't-cart-title',
+                'btn-submit': 't-btn-submit', 'btn-add': 't-btn-add', 'btn-cancel': 't-btn-cancel', 'setting-title': 't-setting-title',
+                'opt-inquiry': 'btn-opt-inquiry', 'opt-sample': 'btn-opt-sample', 'qty-label': 't-qty-label', 'btn-pdf': 't-btn-pdf'
+            };
+            Object.keys(mapping).forEach(key => {
+                const el = document.getElementById(mapping[key]);
+                if (el) el.innerText = t[key.replace('-', '_')];
+            });
+            renderTags();
+            updateCartUI();
+        }
+
+        function renderTags() {
+            const container = document.getElementById('style-tags');
+            container.innerHTML = (i18n[currentLang].tags || i18n['zh'].tags).map((tagName, idx) => {
+                const coreValue = i18n['zh'].tags[idx];
+                const isActive = userData.tags.includes(coreValue) ? 'tag-active' : '';
+                return `<button onclick="toggleTag(this, '${coreValue}')" class="px-3 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-500 bg-white transition-all ${isActive}">${tagName}</button>`;
+            }).join('');
+        }
+
+        function toggleTag(btn, val) {
+            btn.classList.toggle('tag-active');
+            if (userData.tags.includes(val)) userData.tags = userData.tags.filter(t => t !== val);
+            else userData.tags.push(val);
+        }
+
+        function handleLogin() {
+            const name = document.getElementById('user-name').value.trim();
+            const email = document.getElementById('user-email').value.trim();
+            if (!name || !email) return alert("Required info missing!");
+            userData.name = name; userData.email = email;
+            document.getElementById('display-name').innerText = name;
+            document.getElementById('login-page').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('login-page').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                if (!scanner) startScanner();
+            }, 500);
+        }
+
+        function goBackToLogin() {
+            document.getElementById('login-page').classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+            document.getElementById('main-app').classList.add('hidden');
+        }
+
+        function startScanner() {
+            scanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+            scanner.render(text => {
+                try {
+                    const item = JSON.parse(text);
+                    showPreview(item);
+                } catch (e) { }
+            });
+        }
+
+        function showPreview(item) {
+            currentScannedItem = item;
+            document.getElementById('p-name').innerText = (item.fabricCode || '') + '-' + (item.cardCode || '');
+            document.getElementById('p-name-en').innerText = item.nameEn || item.name;
+            document.getElementById('p-content').innerText = `${item.width}" x ${item.gsm}gsm\n${item.composition || ''}`;
+            document.getElementById('p-img').src = item.screenshot || 'https://picsum.photos/seed/400/400';
+            const badge = document.getElementById('recom-badge');
+            if (userData.tags.some(t => item.catalog && item.catalog.includes(t))) badge.classList.remove('hidden');
+            else badge.classList.add('hidden');
+            const modal = document.getElementById('preview-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.querySelector('.transform').classList.remove('translate-y-full'), 10);
+        }
+
+        function closePreview() {
+            const modal = document.getElementById('preview-modal');
+            modal.querySelector('.transform').classList.add('translate-y-full');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function addToCart() {
+            if (isSubmitted) return; // Prevent adding items after submission
+            if (currentScannedItem && !cart.find(i => (i.fabricCode + i.cardCode) === (currentScannedItem.fabricCode + currentScannedItem.cardCode))) {
+                cart.push(currentScannedItem);
+                document.getElementById('cart-fab').classList.remove('hidden');
+                updateCartUI();
+            }
+            closePreview();
+        }
+
+        function setGlobalOption(opt) {
+            globalOption = opt;
+            updateCartUI();
+        }
+
+        function updateGlobalQty(delta) {
+            globalQty += delta;
+            if (globalQty < 1) globalQty = 1;
+            if (globalQty > 4) globalQty = 4;
+            document.getElementById('global-qty-display').innerText = globalQty;
+        }
+
+        function updateCartUI() {
+            const listEl = document.getElementById('cart-items');
+            const submitBtn = document.getElementById('t-btn-submit');
+            const globalSetting = document.getElementById('global-setting-area');
+
+            if (cart.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-20 text-slate-400 text-sm font-medium">目前清單內沒有項目<br>No items in list</div>`;
+                if (submitBtn) submitBtn.disabled = true;
+                globalSetting.classList.add('hidden');
+                document.getElementById('cart-fab').classList.add('hidden');
+            } else {
+                listEl.innerHTML = cart.map((item, idx) => `
+                    <div class="bg-white p-4 rounded-3xl space-y-4 shadow-sm border border-slate-100 animate-in fade-in duration-300">
+                        <div class="flex gap-4">
+                            <img src="${item.screenshot || 'https://picsum.photos/seed/400/400'}" class="w-16 h-16 rounded-xl object-cover bg-slate-50">
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <h4 style="line-height:30px" class="font-bold text-slate-800 text-sm">${item.fabricCode || ''} - ${item.cardCode || ''}</h4>
+                                    <button onclick="removeItem(${idx})" class="text-red-400 font-bold p-1 active:scale-90 transition-transform">✕</button>
+                                </div>
+                                <p class="text-[10px] text-blue-500 font-medium mt-0.5 tracking-tight">${item.nameEn || item.name}</p>
+                                <p class="text-[11px] text-slate-600 font-medium">${item.width}" x ${item.gsm}gsm <br> ${item.composition || '-'}</p>
+                                <p class="text-[10px] text-slate-400 font-medium mt-1">${item.catalog || 'General'}</p>
+                            </div>
+                        </div>
+                    </div>`).join('');
+
+                if (submitBtn) {
+                    if (isSubmitted) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerText = currentLang === 'zh' ? "已提交成功" : (currentLang === 'ja' ? "送信済み" : "Submitted");
+                        submitBtn.className = "w-full bg-green-500 text-white py-4 rounded-2xl font-bold text-lg shadow-xl opacity-80 cursor-not-allowed";
+                    } else {
+                        submitBtn.disabled = false;
+                        submitBtn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg shadow-xl";
+                    }
+                }
+                globalSetting.classList.remove('hidden');
+
+                const inquiryBtn = document.getElementById('btn-opt-inquiry');
+                const sampleBtn = document.getElementById('btn-opt-sample');
+                const qtyArea = document.getElementById('global-qty-area');
+
+                if (globalOption === '詢價') {
+                    inquiryBtn.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all bg-white text-blue-600 shadow-sm";
+                    sampleBtn.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all text-slate-400";
+                    qtyArea.classList.add('hidden');
+                } else {
+                    inquiryBtn.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all text-slate-400";
+                    sampleBtn.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all bg-white text-blue-600 shadow-sm";
+                    qtyArea.classList.remove('hidden');
+                }
+            }
+            document.getElementById('badge').innerText = cart.length;
+        }
+
+        function removeItem(idx) { cart.splice(idx, 1); updateCartUI(); }
+        function openCart() { const cp = document.getElementById('cart-page'); cp.classList.remove('hidden'); setTimeout(() => cp.classList.remove('translate-x-full'), 10); }
+        function closeCart() { document.getElementById('cart-page').classList.add('translate-x-full'); setTimeout(() => document.getElementById('cart-page').classList.add('hidden'), 300); }
+
+        async function downloadPDF() {
+            const template = document.getElementById('pdf-table-template');
+            const t = i18n[currentLang];
+            template.classList.remove('hidden');
+            document.getElementById('pdf-user-name').innerText = userData.name;
+            document.getElementById('pdf-user-email').innerText = userData.email;
+            document.getElementById('pdf-date').innerText = new Date().toLocaleDateString();
+
+            let typeLabel = globalOption === '詢價' ? t.opt_inquiry : t.opt_sample;
+            if (globalOption !== '詢價') typeLabel += ` (x${globalQty})`;
+            document.getElementById('pdf-request-type').innerText = typeLabel;
+
+            const tbody = document.getElementById('pdf-table-body');
+            tbody.innerHTML = cart.map(item => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 9px; color: #334155;"><b>${item.fabricCode || '-'}</b><br>${item.cardCode || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 9px; color: #334155;"><b>${item.nameEn || '-'}</b></td>
+                    <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 9px; color: #64748b;">${item.width}" x ${item.gsm}gsm</td>
+                    <td style="padding: 8px; border: 1px solid #e2e8f0; font-size: 9px; color: #64748b;">${item.composition || '-'}</td>
+                </tr>
+            `).join('');
+
+            const canvas = await html2canvas(template.firstElementChild, { scale: 2, useCORS: true });
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            // Full A4 page width is 210mm. 
+            // We can add the image with a small margin if needed, but the template already has padding.
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
+            pdf.save(`HR_Request_${userData.name}_${new Date().getTime()}.pdf`);
+            template.classList.add('hidden');
+        }
+
+        async function finalSubmit() {
+            if (cart.length === 0) return alert("List is empty!");
+            const btn = document.getElementById('t-btn-submit');
+            const originalText = btn ? btn.innerText : "...";
+            if (btn) { btn.disabled = true; btn.innerText = "..."; }
+
+            const submitCart = cart.map(item => ({
+                ...item,
+                type: globalOption,
+                qty: globalOption === '詢價+調樣(吊卡)' ? globalQty : ''
+            }));
+
+            try {
+                await fetch(GAS_URL, {
+                    method: 'POST', mode: 'no-cors',
+                    body: JSON.stringify({ action: 'lead_capture', userData: userData, cart: submitCart })
+                });
+
+                isSubmitted = true;
+                updateCartUI(); // Refresh UI to show submitted state
+
+                let successMsg = "需求已成功提交！您可以點擊 Download PDF 留底。";
+                if (currentLang === 'en') successMsg = "Submission Successful! You can now download the PDF.";
+                if (currentLang === 'ja') successMsg = "リクエストが正常に送信されました！PDFをダウンロードして保存できます。";
+                alert(successMsg);
+            } catch (e) {
+                btn.innerText = originalText;
+            }
+        }
+
+        changeLang('zh');
+    </script>
+</body>
+
+</html>
