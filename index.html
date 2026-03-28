@@ -316,19 +316,46 @@
                 }
             });
             scanner.render(text => {
+                console.log("Scanned Raw Text:", text); // Debugging
                 try {
-                    const item = JSON.parse(text);
+                    // Try to parse as JSON first
+                    const raw = JSON.parse(text);
+                    console.log("Parsed JSON:", raw); // Debugging
+                    
+                    // Map minified or legacy keys with robust string conversion
+                    const item = {
+                        name: String(raw.n || raw.name || "-"),
+                        nameEn: String(raw.ne || raw.nameEn || "-"),
+                        fabricCode: String(raw.fc || raw.fabricCode || ""),
+                        cardCode: String(raw.cc || raw.cardCode || ""),
+                        width: String(raw.w || raw.width || ""),
+                        gsm: String(raw.g || raw.gsm || ""),
+                        composition: String(raw.c || raw.composition || ""),
+                        catalog: String(raw.cat || raw.catalog || ""),
+                        screenshot: String(raw.s || raw.screenshot || "")
+                    };
                     showPreview(item);
-                } catch (e) { }
+                } catch (e) {
+                    // Fallback: If not JSON, treat as a simple cardCode for quick scanning
+                    if (text && text.trim().length > 0) {
+                        showPreview({
+                            name: "-", nameEn: "-",
+                            fabricCode: "", cardCode: text.trim(),
+                            width: "-", gsm: "-", composition: "-",
+                            catalog: "Exhibition", screenshot: ""
+                        });
+                    }
+                }
             });
         }
 
         function showPreview(item) {
             currentScannedItem = item;
-            document.getElementById('p-name').innerText = (item.fabricCode || '') + '-' + (item.cardCode || '');
+            const fullCode = (item.fabricCode && item.fabricCode !== "-") ? (item.fabricCode + "-" + item.cardCode) : item.cardCode;
+            document.getElementById('p-name').innerText = fullCode;
             document.getElementById('p-name-en').innerText = item.nameEn || item.name;
             document.getElementById('p-content').innerText = `${item.width}" x ${item.gsm}gsm\n${item.composition || ''}`;
-            document.getElementById('p-img').src = 'https://picsum.photos/seed/400/400';
+            document.getElementById('p-img').src = item.screenshot || 'https://picsum.photos/seed/400/400';
             const badge = document.getElementById('recom-badge');
             if (userData.tags.some(t => item.catalog && item.catalog.includes(t))) badge.classList.remove('hidden');
             else badge.classList.add('hidden');
