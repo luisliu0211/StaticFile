@@ -319,7 +319,7 @@
             document.getElementById('p-name').innerText = (item.fabricCode || '') + '-' + (item.cardCode || '');
             document.getElementById('p-name-en').innerText = item.nameEn || item.name;
             document.getElementById('p-content').innerText = `${item.width}" x ${item.gsm}gsm\n${item.composition || ''}`;
-            document.getElementById('p-img').src = item.screenshot || 'https://picsum.photos/seed/400/400';
+            document.getElementById('p-img').src = 'https://picsum.photos/seed/400/400';
             const badge = document.getElementById('recom-badge');
             if (userData.tags.some(t => item.catalog && item.catalog.includes(t))) badge.classList.remove('hidden');
             else badge.classList.add('hidden');
